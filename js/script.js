@@ -1,115 +1,128 @@
-const BASE_URL = "https://www.swapi.tech/api/planets";
+const apiUrl = 'https://www.swapi.tech/api/planets';
+let allPlanets = [];
 let currentPage = 1;
+const itemsPerPage = 10;
 let totalPages = 0;
 
-// Функция для загрузки данных
-async function fetchData(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Ошибка при загрузке данных");
-  return response.json();
+const planetListContainer = document.getElementById('planet-list');
+const paginationContainer = document.getElementById('pagination');
+const modalContainer = document.getElementById('modal-container');
+const showAllButton = document.getElementById('show-all-button');
+
+async function fetchAllPlanets() {
+  try {
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+    const planets = data.results;
+
+    allPlanets = await Promise.all(
+      planets.map(async (planet) => {
+        const detailsResponse = await fetch(planet.url);
+        const detailsData = await detailsResponse.json();
+        return detailsData.result.properties;
+      })
+    );
+
+    totalPages = Math.ceil(allPlanets.length / itemsPerPage);
+    renderPlanets();
+    renderPagination();
+  } catch (error) {
+    console.error('Error fetching planets:', error);
+  }
 }
 
-// Рендер карточек планет
-function renderPlanets(planets) {
-  const container = document.getElementById("planets-container");
-  container.innerHTML = "";
+function renderPlanets() {
+  planetListContainer.innerHTML = '';
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const planetsToShow = allPlanets.slice(startIndex, endIndex);
 
-  planets.forEach(({ uid, properties }) => {
-    const card = document.createElement("div");
-    card.className = "col-md-4 mb-4";
-    card.innerHTML = `
-      <div class="card h-100">
-        <div class="card-body">
-          <h5 class="card-title">${properties.name}</h5>
-          <p><strong>Диаметр:</strong> ${properties.diameter}</p>
-          <p><strong>Население:</strong> ${properties.population}</p>
-          <p><strong>Гравитация:</strong> ${properties.gravity}</p>
-          <p><strong>Зоны:</strong> ${properties.terrain}</p>
-          <p><strong>Климат:</strong> ${properties.climate}</p>
-          <button class="btn btn-primary" onclick="showDetails('${uid}')">Подробнее</button>
-        </div>
+  planetsToShow.forEach((planet) => {
+    const planetCard = document.createElement('div');
+    planetCard.className = 'planet-card card mb-3';
+    planetCard.innerHTML = `
+      <div class="card-body">
+        <h5 class="card-title">${planet.name}</h5>
+        <p>Диаметр: ${planet.diameter || 'Неизвестно'}</p>
+        <p>Население: ${planet.population || 'Неизвестно'}</p>
+        <p>Гравитация: ${planet.gravity || 'Неизвестно'}</p>
+        <p>Территории: ${planet.terrain || 'Неизвестно'}</p>
+        <p>Климат: ${planet.climate || 'Неизвестно'}</p>
       </div>
     `;
-    container.appendChild(card);
+    planetCard.addEventListener('click', () => showPlanetDetails(planet));
+    planetListContainer.appendChild(planetCard);
   });
 }
 
-// Показ модального окна с детальной информацией
-async function showDetails(planetId) {
-  const planetData = await fetchData(`https://www.swapi.tech/api/planets/${planetId}`);
-  const planet = planetData.result.properties;
+function renderPagination() {
+  paginationContainer.innerHTML = '';
+  const maxPagesToShow = 3;
+  let startPage = Math.max(1, currentPage - 1);
+  let endPage = Math.min(totalPages, currentPage + 1);
 
-  const modalTitle = document.getElementById("planetModalLabel");
-  const modalDetails = document.getElementById("planet-details");
-  const filmsList = document.getElementById("films-list");
-  const charactersList = document.getElementById("characters-list");
+  for (let i = startPage; i <= endPage; i++) {
+    const pageButton = document.createElement('button');
+    pageButton.className = `btn btn-primary m-1 ${i === currentPage ? 'active' : ''}`;
+    pageButton.innerText = i;
+    pageButton.addEventListener('click', () => {
+      currentPage = i;
+      renderPlanets();
+    });
+    paginationContainer.appendChild(pageButton);
+  }
 
-  modalTitle.textContent = planet.name;
-  modalDetails.innerHTML = `
-    <p><strong>Диаметр:</strong> ${planet.diameter}</p>
-    <p><strong>Население:</strong> ${planet.population}</p>
-    <p><strong>Гравитация:</strong> ${planet.gravity}</p>
-    <p><strong>Зоны:</strong> ${planet.terrain}</p>
-    <p><strong>Климат:</strong> ${planet.climate}</p>
+  if (currentPage < totalPages) {
+    const nextPageButton = document.createElement('button');
+    nextPageButton.className = 'btn btn-secondary m-1';
+    nextPageButton.innerText = 'Далее';
+    nextPageButton.addEventListener('click', () => {
+      currentPage++;
+      renderPlanets();
+    });
+    paginationContainer.appendChild(nextPageButton);
+  }
+}
+
+function showPlanetDetails(planet) {
+  modalContainer.innerHTML = `
+    <div class="modal fade show" tabindex="-1" style="display: block;">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">${planet.name}</h5>
+            <button type="button" class="btn-close" onclick="closeModal()"></button>
+          </div>
+          <div class="modal-body">
+            <p>Диаметр: ${planet.diameter || 'Неизвестно'}</p>
+            <p>Население: ${planet.population || 'Неизвестно'}</p>
+            <p>Гравитация: ${planet.gravity || 'Неизвестно'}</p>
+            <p>Территории: ${planet.terrain || 'Неизвестно'}</p>
+            <p>Климат: ${planet.climate || 'Неизвестно'}</p>
+            <p>Период вращения: ${planet.rotation_period || 'Неизвестно'}</p>
+            <p>Период орбиты: ${planet.orbital_period || 'Неизвестно'}</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Закрыть</button>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
-
-  // Фильмы
-  filmsList.innerHTML = "";
-  for (const filmUrl of planet.films) {
-    const film = await fetchData(filmUrl);
-    const li = document.createElement("li");
-    li.textContent = `Эпизод ${film.result.properties.episode_id}: ${film.result.properties.title} (${film.result.properties.release_date})`;
-    filmsList.appendChild(li);
-  }
-
-  charactersList.innerHTML = "";
-  for (const characterUrl of planet.residents) {
-    const character = await fetchData(characterUrl);
-    const homeworld = await fetchData(character.result.properties.homeworld);
-    const li = document.createElement("li");
-    li.textContent = `${character.result.properties.name} (${character.result.properties.gender}, ${character.result.properties.birth_year}, Родной мир: ${homeworld.result.properties.name})`;
-    charactersList.appendChild(li);
-  }
-
-  const modal = new bootstrap.Modal(document.getElementById("planetModal"));
-  modal.show();
 }
 
-// Пагинация
-function renderPagination(total, current) {
-  const pagination = document.getElementById("pagination");
-  totalPages = Math.ceil(total / 10);
-  pagination.innerHTML = "";
-
-  for (let i = 1; i <= totalPages; i++) {
-    const li = document.createElement("li");
-    li.className = `page-item ${i === current ? "active" : ""}`;
-    li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
-    li.addEventListener("click", () => loadPage(i));
-    pagination.appendChild(li);
-  }
+function closeModal() {
+  modalContainer.innerHTML = '';
 }
 
-// Загрузка страницы
-async function loadPage(page) {
-  currentPage = page;
-  const data = await fetchData(`${BASE_URL}?page=${page}`);
-  renderPlanets(data.results);
-  renderPagination(data.total_records, page);
+showAllButton.addEventListener('click', () => {
+  currentPage = 1;
+  fetchAllPlanets();
+});
+
+function init() {
+  fetchAllPlanets();
 }
 
-// Загрузка всех планет
-async function loadAllPlanets() {
-  let allPlanets = [];
-  let url = `${BASE_URL}?page=1`;
-  while (url) {
-    const data = await fetchData(url);
-    allPlanets = allPlanets.concat(data.results);
-    url = data.next;
-  }
-  renderPlanets(allPlanets);
-}
+init();
 
-// Инициализация
-document.getElementById("show-all").addEventListener("click", loadAllPlanets);
-loadPage(currentPage);
